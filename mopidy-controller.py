@@ -17,18 +17,19 @@ class Plugin:
             <script src="/static/library.js"></script>
         </head>
         <body>
-        <!--
             <div style="width:100%; text-align: center;">
-                <button style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
+                <button onclick="showing_playlists = false;" style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
                 Track List
                 </button>
-                <button style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
+                <button onclick="set_playlists()" style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
                 Playlists
                 </button>
             </div>
-        -->
-            <ul id="playlist" style="list-style-type:none;"></ul>
+        
+            <ul id="playlist" style="list-style-type:none; padding: 0; overflow-y: scroll; height:85%;"></ul>
             <script>
+                var showing_playlists = false;
+
                 async function call_mopidy_rpc(command, params = {}) {
                     let res = await fetch_nocors('http://localhost:6680/mopidy/rpc', {
                         method: 'POST',
@@ -40,22 +41,38 @@ class Plugin:
                     return JSON.parse(res.body).result;
                 }
 
-                function set_playlist(plist) {
+                async function set_playlists() {
+                    showing_playlists = true;
+                    let playlists = await call_mopidy_rpc("core.playlists.as_list");
                     document.getElementById("playlist").innerHTML = "";
-                    plist.forEach((el) => {
+                    playlists.forEach(el => {
                         let e = document.createElement("li");
-                        e.innerText = `${el.track.artists != undefined ? el.track.artists[0].name : "Unknown artist"} - ${el.track.name}`;
-                        e.onclick = function() {
-                            call_mopidy_rpc("core.playback.play", {"tlid" : el.tlid})
+                        e.innerText = el.name;
+                        e.onclick = async function() {
+                            await call_mopidy_rpc("core.tracklist.clear");
+                            let songs = await call_mopidy_rpc("core.playlists.get_items", {"uri" : el.uri});
+                            let uris = []
+                            songs.forEach(song => uris.push(song.uri));
+                            await call_mopidy_rpc("core.tracklist.add", {"uris" : uris});
+                            await call_mopidy_rpc("core.playback.play");
                         }
                         document.getElementById("playlist").appendChild(e);
                     });
                 }
 
                 setInterval(async function () {
+                    if (showing_playlists) return;
                     let tracklist = await call_mopidy_rpc("core.tracklist.get_tl_tracks");
-                    set_playlist(tracklist);
-                }, 2000);
+                    document.getElementById("playlist").innerHTML = "";
+                    tracklist.forEach(el => {
+                        let e = document.createElement("li");
+                        e.innerText = `${el.track.artists != undefined ? el.track.artists[0].name : "Unknown artist"} - ${el.track.name}`;
+                        e.onclick = function() {
+                            call_mopidy_rpc("core.playback.play", {"tlid" : el.tlid});
+                        }
+                        document.getElementById("playlist").appendChild(e);
+                    });
+                }, 1000);
             </script>
         </body>
     </html>
@@ -126,14 +143,10 @@ class Plugin:
         document.getElementById("mopidy_btn_play").onclick = async function (e) {
             e.stopPropagation();
             let playback_state = await call_mopidy_rpc("core.playback.get_state");
-            if (playback_state.toLowerCase() == "paused") {
+            if (playback_state.toLowerCase() == "paused") 
                 call_mopidy_rpc("core.playback.resume");
-                document.getElementById("play-button").innerHTML = PAUSE_ICON;
-            }
-            else if (playback_state.toLowerCase() == "playing") {
+            else if (playback_state.toLowerCase() == "playing") 
                 call_mopidy_rpc("core.playback.pause");
-                document.getElementById("play-button").innerHTML = PLAY_ICON;
-            }
         }
 
         document.getElementById("mopidy_btn_next").onclick = function(e) {
@@ -149,6 +162,10 @@ class Plugin:
         setInterval(async function () {
             let current_song = await call_mopidy_rpc("core.playback.get_current_track");
             if (current_song) set_current_song(current_song.name, current_song.artists[0].name);
+
+            let playback_state = await call_mopidy_rpc("core.playback.get_state");
+            if (playback_state.toLowerCase() == "paused") document.getElementById("mopidy_btn_play").innerHTML = PLAY_ICON;
+            else if (playback_state.toLowerCase() == "playing") document.getElementById("mopidy_btn_play").innerHTML = PAUSE_ICON;
         }, 1000);
     </script>
     """
