@@ -1,0 +1,78 @@
+<html>
+
+<head>
+    <style>
+        li {
+            color: #dcdedf;
+            border-top: 1px solid #dcdedf;
+            padding-top: 3px;
+            margin-bottom: 3px;
+            list-style-position: inside;
+        }
+    </style>
+    <script src="/static/library.js"></script>
+</head>
+
+<body>
+    <div style="width:100%; text-align: center;">
+        <button onclick="showing_playlists = false;"
+            style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
+            Track List
+        </button>
+        <button onclick="set_playlists()"
+            style="display:inline-block; border-radius: 100px; background: #23262e; color: #dcdedf;">
+            Playlists
+        </button>
+    </div>
+
+    <ul id="playlist" style="list-style-type:none; padding: 0; overflow-y: scroll; height:85%;"></ul>
+    <script>
+        var showing_playlists = false;
+
+        async function call_mopidy_rpc(command, params = {}) {
+            let res = await fetch_nocors('http://localhost:6680/mopidy/rpc', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ "jsonrpc": "2.0", "id": 1, "method": command, "params": params }),
+            });
+            return JSON.parse(res.body).result;
+        }
+
+        async function set_playlists() {
+            showing_playlists = true;
+            let playlists = await call_mopidy_rpc("core.playlists.as_list");
+            document.getElementById("playlist").innerHTML = "";
+            playlists.forEach(el => {
+                let e = document.createElement("li");
+                e.innerText = el.name;
+                e.onclick = async function () {
+                    await call_mopidy_rpc("core.tracklist.clear");
+                    let songs = await call_mopidy_rpc("core.playlists.get_items", { "uri": el.uri });
+                    let uris = []
+                    songs.forEach(song => uris.push(song.uri));
+                    await call_mopidy_rpc("core.tracklist.add", { "uris": uris });
+                    await call_mopidy_rpc("core.playback.play");
+                }
+                document.getElementById("playlist").appendChild(e);
+            });
+        }
+
+        setInterval(async function () {
+            if (showing_playlists) return;
+            let tracklist = await call_mopidy_rpc("core.tracklist.get_tl_tracks");
+            document.getElementById("playlist").innerHTML = "";
+            tracklist.forEach(el => {
+                let e = document.createElement("li");
+                e.innerText = `${el.track.artists != undefined ? el.track.artists[0].name : "Unknown artist"} - ${el.track.name}`;
+                e.onclick = function () {
+                    call_mopidy_rpc("core.playback.play", { "tlid": el.tlid });
+                }
+                document.getElementById("playlist").appendChild(e);
+            });
+        }, 1000);
+    </script>
+</body>
+
+</html>
