@@ -1,5 +1,0 @@
-{
-  "discord_id": "317602018866888705",
-  "description": "A controller for the Mopidy music server, with tile view, tracklist view and playlist picker",
-  "tags": ["media", "music", "requires_ext"]
-}

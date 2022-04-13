@@ -1,0 +1,12 @@
+{
+  "name": "Mopidy-Controller",
+  "author": "marios8543",
+  "main_view_html": "main_view.html",
+  "tile_view_html": "tile_view.html",
+  "flags": ["hot_reload"],
+  "publish": {
+    "discord_id": "317602018866888705",
+    "description": "A controller for the Mopidy music server, with tile view, tracklist view and playlist picker",
+    "tags": ["media", "music", "requires_ext"]
+  }
+}
